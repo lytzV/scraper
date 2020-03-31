@@ -77,30 +77,32 @@ def get_pages(pages):
 def scrape_meal(meal, df, loc):
     #meal must be Breakfast, Brunch, Dinner
     assert meal == "Breakfast" or meal == "Brunch or Lunch" or meal == "Dinner"
-    if meal == "Brunch or Lunch":
-        prefix = "//div[@id='node-177']/div/div[5]/div[h3[@class='location_period'] = ' Lunch' or h3[@class='location_period'] = ' Brunch']/"
-    else:
-        prefix = "//div[@id='node-177']/div/div[5]/div[h3[@class='location_period'] = ' {}']/".format(meal)
-    xpaths = {
-        "loc": prefix+"h3[@class='location2']",
-        "menu": prefix+"p",
-        "type": prefix+"p[@class='station_wrap']",
-        "msg": prefix+"p[not(@class='station_wrap')]"
-    }
+    day_to_div = {0:5, 1:7, 2:9, 3:11, 4:13, 5:15, 6:17}
+    for i,v in day_to_div.items():
+        if meal == "Brunch or Lunch":
+            prefix = "//div[@id='node-177']/div/div[{}]/div[h3[@class='location_period'] = ' Lunch' or h3[@class='location_period'] = ' Brunch']/".format(v)
+        else:
+            prefix = "//div[@id='node-177']/div/div[{0}]/div[h3[@class='location_period'] = ' {1}']/".format(v, meal)
+        xpaths = {
+            "loc": prefix+"h3[@class='location2']",
+            "menu": prefix+"p",
+            "type": prefix+"p[@class='station_wrap']",
+            "msg": prefix+"p[not(@class='station_wrap')]"
+        }
 
-    menu = [{t.text:[link.get_attribute("title") for link in t.find_elements_by_class_name('food_icon')]} for t in driver.find_elements_by_xpath(xpaths["menu"])]
-    m = [t.text for t in driver.find_elements_by_xpath(xpaths["msg"])]
-    msg = "No {} Menu".format(meal) if len(menu) == 0 else (m[0] if len(m)!=0 else "No Message")
-    station = [t.text for t in driver.find_elements_by_xpath(xpaths["type"])]
-    
-    df = parse(loc, menu, station, msg, df, meal)
+        menu = [{t.text:[link.get_attribute("title") for link in t.find_elements_by_class_name('food_icon')]} for t in driver.find_elements_by_xpath(xpaths["menu"])]
+        m = [t.text for t in driver.find_elements_by_xpath(xpaths["msg"])]
+        msg = "No {} Menu".format(meal) if len(menu) == 0 else (m[0] if len(m)!=0 else "No Message")
+        station = [t.text for t in driver.find_elements_by_xpath(xpaths["type"])]
+        
+        df = parse(loc, i, menu, station, msg, df, meal)
     return df
 
 
 def scrape(pages, driver):
-    breakfast_df = pd.DataFrame(None, columns=['LOC','IS_OPEN','MSG'])
-    brunch_df = pd.DataFrame(None, columns=['LOC','IS_OPEN','MSG'])
-    dinner_df = pd.DataFrame(None, columns=['LOC','IS_OPEN','MSG'])
+    breakfast_df = pd.DataFrame(None, columns=['LOC','DAY','IS_OPEN','MSG'])
+    brunch_df = pd.DataFrame(None, columns=['LOC','DAY','IS_OPEN','MSG'])
+    dinner_df = pd.DataFrame(None, columns=['LOC','DAY','IS_OPEN','MSG'])
 
     try:
         for p in pages:
@@ -121,16 +123,17 @@ def scrape(pages, driver):
     driver.quit()
 
 
-def parse(loc, menu_with_options, station, msg, df, meal):
+def parse(loc, day, menu_with_options, station, msg, df, meal):
     row = {}
     row['LOC'] = loc
+    row['DAY'] = day
     row['MSG'] = msg
     menu = mylist([list(d.keys())[0] for d in menu_with_options])
     
     if msg == "No {} Menu".format(meal):
         row['IS_OPEN'] = False
         df = df.append(row, ignore_index=True)
-        print("{} has nothing during {}".format(loc, meal))
+        print("{} has nothing during {} on Day {}".format(loc, meal, day))
         return df
     row['IS_OPEN'] = True
 
@@ -140,7 +143,7 @@ def parse(loc, menu_with_options, station, msg, df, meal):
     ### Update DataFrame if sees new stations
     new_station = [s for s in station if s not in list(df.columns)]
     df = pd.concat([df, pd.DataFrame(None, columns=new_station)], axis=1)
-    print("{} has {} during {}".format(loc, station, meal))
+    print("{} has {} during {} on Day {}".format(loc, [s.lower() for s in station], meal, day))
 
     labels = [menu.find(s) for s in station]
     labels = [l for l in labels if l != -1]
@@ -174,9 +177,9 @@ def import_sql(dfs):
         dfs[1].to_sql('Lunch', engine, if_exists='replace', index = False)
         dfs[2].to_sql('Dinner', engine, if_exists='replace', index = False)
         with engine.connect() as conn:
-            conn.execute('ALTER TABLE Lunch ADD PRIMARY KEY (loc(5));')
-            conn.execute('ALTER TABLE Dinner ADD PRIMARY KEY (loc(5));')
-            conn.execute('ALTER TABLE Breakfast ADD PRIMARY KEY (loc(5));')
+            conn.execute('ALTER TABLE Lunch ADD PRIMARY KEY (LOC(5), DAY);')
+            conn.execute('ALTER TABLE Dinner ADD PRIMARY KEY (LOC(5), DAY);')
+            conn.execute('ALTER TABLE Breakfast ADD PRIMARY KEY (LOC(5), DAY);')
     except Exception as e:
         print(e)
 
