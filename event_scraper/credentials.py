@@ -1,5 +1,5 @@
-EMAIL = "daxialixiang@hotmail.com"
-PSWD = "victorlixiang"
+EMAIL = ""
+PSWD = ""
 
 prefix1 = "/html/body//div[contains(concat(' ',normalize-space(@class)),' d2edcug')][contains(concat(' ', normalize-space(@class), ' '),' cbu4d94t ')][contains(concat(' ',normalize-space(@class)),' j83agx')][contains(concat(' ', normalize-space(@class), ' '),' bp9cbjyn ')]/div/iframe//div[@id='upcoming_events_card']/div//div[@class='_24er']/table/tbody/tr/"
 xpaths1 = {
